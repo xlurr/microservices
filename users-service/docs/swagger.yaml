@@ -1,0 +1,203 @@
+basePath: /
+definitions:
+  models.CreateUserRequest:
+    properties:
+      age:
+        maximum: 120
+        minimum: 18
+        type: integer
+      email:
+        type: string
+      first_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+      last_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+    required:
+    - age
+    - email
+    - first_name
+    - last_name
+    type: object
+  models.ErrorResponse:
+    properties:
+      errors:
+        items:
+          $ref: '#/definitions/models.FieldError'
+        type: array
+      message:
+        type: string
+      status:
+        type: integer
+    type: object
+  models.FieldError:
+    properties:
+      field:
+        type: string
+      message:
+        type: string
+    type: object
+  models.User:
+    properties:
+      age:
+        maximum: 120
+        minimum: 18
+        type: integer
+      created_at:
+        type: string
+      email:
+        type: string
+      first_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+      id:
+        type: integer
+      last_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+      updated_at:
+        type: string
+    required:
+    - age
+    - email
+    - first_name
+    - last_name
+    type: object
+host: localhost:8081
+info:
+  contact: {}
+  description: API для управления пользователями
+  title: Users Microservice API
+  version: "1.0"
+paths:
+  /api/users:
+    get:
+      description: Список всех пользователей
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.User'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Получить всех пользователей
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: Создание пользователя с валидацией данных
+      parameters:
+      - description: Данные пользователя
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Создать нового пользователя
+      tags:
+      - users
+  /api/users/{id}:
+    delete:
+      description: Удаление пользователя по ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Удалить пользователя
+      tags:
+      - users
+    get:
+      description: Информация о пользователе
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Получить пользователя по ID
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: Обновление данных пользователя
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновленные данные
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Обновить пользователя
+      tags:
+      - users
+swagger: "2.0"

@@ -1,0 +1,66 @@
+basePath: /
+definitions:
+  models.CreatePaymentRequest:
+    properties:
+      amount:
+        type: number
+      order_id:
+        type: integer
+    required:
+    - amount
+    - order_id
+    type: object
+  models.Payment:
+    properties:
+      amount:
+        type: number
+      created_at:
+        type: string
+      id:
+        type: integer
+      order_id:
+        type: integer
+      status:
+        type: string
+    type: object
+host: localhost:8083
+info:
+  contact: {}
+  title: Payments Microservice API
+  version: "1.0"
+paths:
+  /api/payments:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Payment'
+            type: array
+      summary: Получить все платежи
+      tags:
+      - payments
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные платежа
+        in: body
+        name: payment
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreatePaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Payment'
+      summary: Создать платеж
+      tags:
+      - payments
+swagger: "2.0"

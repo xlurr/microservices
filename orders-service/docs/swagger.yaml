@@ -1,0 +1,137 @@
+basePath: /
+definitions:
+  models.CreateOrderRequest:
+    properties:
+      items:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      user_id:
+        type: integer
+    required:
+    - items
+    - user_id
+    type: object
+  models.Order:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      items:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      status:
+        type: string
+      total_amount:
+        type: number
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    required:
+    - items
+    - user_id
+    type: object
+  models.UpdateStatusRequest:
+    properties:
+      status:
+        enum:
+        - created
+        - payment_pending
+        - paid
+        - delivered
+        - cancelled
+        type: string
+    required:
+    - status
+    type: object
+host: localhost:8082
+info:
+  contact: {}
+  description: API для управления заказами
+  title: Orders Microservice API
+  version: "1.0"
+paths:
+  /api/orders:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Order'
+            type: array
+      summary: Получить все заказы
+      tags:
+      - orders
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Данные заказа
+        in: body
+        name: order
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Order'
+      summary: Создать заказ
+      tags:
+      - orders
+  /api/orders/{id}:
+    get:
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Order'
+      summary: Получить заказ по ID
+      tags:
+      - orders
+  /api/orders/{id}/status:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Order ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Новый статус
+        in: body
+        name: status
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Order'
+      summary: Обновить статус заказа
+      tags:
+      - orders
+swagger: "2.0"

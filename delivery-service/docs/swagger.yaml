@@ -1,0 +1,47 @@
+basePath: /
+definitions:
+  models.Delivery:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      order_id:
+        type: integer
+      status:
+        type: string
+    type: object
+host: localhost:8084
+info:
+  contact: {}
+  title: Delivery Microservice API
+  version: "1.0"
+paths:
+  /api/deliveries:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Delivery'
+            type: array
+      summary: Получить все доставки
+      tags:
+      - delivery
+    post:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Delivery'
+      summary: Создать доставку
+      tags:
+      - delivery
+swagger: "2.0"
