@@ -1,53 +1,63 @@
 package main
 
 import (
-"log"
-"net/http"
-"time"
+	"log"
+	"net/http"
+	"os"
 
-"github.com/gorilla/mux"
-httpSwagger "github.com/swaggo/http-swagger"
+	"github.com/gorilla/mux"
+	httpSwagger "github.com/swaggo/http-swagger"
 
-"delivery-service/internal/handlers"
-"delivery-service/internal/repository"
-_ "delivery-service/docs"
+	"delivery-service/internal/handlers"
+	"delivery-service/internal/repository"
+	_ "delivery-service/docs"
 )
 
-// @title Delivery Microservice API
+// @title Delivery Service API
 // @version 1.0
-// @description API для управления доставками
+// @description Delivery microservice
 // @host localhost:8084
-// @BasePath /
-// @schemes http https
+// @basePath /api
+
 func main() {
-router := mux.NewRouter()
+	router := mux.NewRouter()
 
-repo := repository.NewInMemoryDeliveryRepository()
-handler := handlers.NewDeliveryHandler(repo)
+	// Инициализируем JSON репозиторий
+	repo, err := repository.NewJSONDeliveryRepository("./data/deliveries.json")
+	if err != nil {
+		log.Fatalf("Failed to initialize repository: %v", err)
+	}
 
-api := router.PathPrefix("/api").Subrouter()
-api.HandleFunc("/deliveries", handler.CreateDelivery).Methods("POST")
-api.HandleFunc("/deliveries", handler.GetAllDeliveries).Methods("GET")
+	handler := handlers.NewDeliveryHandler(repo)
 
-router.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
-httpSwagger.URL("http://localhost:8084/swagger/doc.json"),
-httpSwagger.DeepLinking(true),
-httpSwagger.DocExpansion("list"),
-))
+	// API endpoints
+	api := router.PathPrefix("/api").Subrouter()
 
-router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-w.WriteHeader(http.StatusOK)
-w.Write([]byte("OK"))
-}).Methods("GET")
+	api.HandleFunc("/deliveries", handler.CreateDelivery).Methods("POST")
+	api.HandleFunc("/deliveries", handler.GetAllDeliveries).Methods("GET")
+	api.HandleFunc("/deliveries/{id}", handler.GetDeliveryByID).Methods("GET")
+	api.HandleFunc("/deliveries/user/{userId}", handler.GetDeliveriesByUserID).Methods("GET")
+	api.HandleFunc("/deliveries/{id}", handler.UpdateDelivery).Methods("PUT")
+	api.HandleFunc("/deliveries/user/{userId}", handler.DeleteDeliveriesByUserID).Methods("DELETE")
 
-srv := &http.Server{
-Handler:      router,
-Addr:         ":8084",
-WriteTimeout: 15 * time.Second,
-ReadTimeout:  15 * time.Second,
-}
+	// Swagger
+	router.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
+		httpSwagger.URL("http://localhost:8084/swagger/doc.json"),
+	))
 
-log.Println("Delivery service starting on :8084")
-log.Println("Swagger: http://localhost:8084/swagger/")
-log.Fatal(srv.ListenAndServe())
+	// Health check
+	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}).Methods("GET")
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8084"
+	}
+
+	log.Printf("Starting delivery-service on port %s", port)
+	if err := http.ListenAndServe(":"+port, router); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
 }

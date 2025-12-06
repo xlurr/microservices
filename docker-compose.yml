@@ -2,101 +2,59 @@ version: '3.8'
 
 services:
   users-service:
-    build:
-      context: ./users-service
-      dockerfile: Dockerfile
+    build: ./users-service
     container_name: users-service
     ports:
       - "8081:8081"
     environment:
-      - SERVICE_NAME=users-service
-      - SERVICE_PORT=8081
+      - PORT=8081
+      - ORDERS_SERVICE_URL=http://orders-service:8082
+    volumes:
+      - ./users-service/data:/app/data
     networks:
       - microservices-network
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
+    depends_on:
+      - orders-service
 
   orders-service:
-    build:
-      context: ./orders-service
-      dockerfile: Dockerfile
+    build: ./orders-service
     container_name: orders-service
     ports:
       - "8082:8082"
     environment:
-      - SERVICE_NAME=orders-service
-      - SERVICE_PORT=8082
-      - PAYMENTS_SERVICE_URL=http://payments-service:8083
+      - PORT=8082
+      - USERS_SERVICE_URL=http://users-service:8081
+    volumes:
+      - ./orders-service/data:/app/data
     networks:
       - microservices-network
-    depends_on:
-      users-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
 
   payments-service:
-    build:
-      context: ./payments-service
-      dockerfile: Dockerfile
+    build: ./payments-service
     container_name: payments-service
     ports:
       - "8083:8083"
     environment:
-      - SERVICE_NAME=payments-service
-      - SERVICE_PORT=8083
+      - PORT=8083
+      - USERS_SERVICE_URL=http://users-service:8081
+    volumes:
+      - ./payments-service/data:/app/data
     networks:
       - microservices-network
-    depends_on:
-      orders-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8083/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
 
   delivery-service:
-    build:
-      context: ./delivery-service
-      dockerfile: Dockerfile
+    build: ./delivery-service
     container_name: delivery-service
     ports:
       - "8084:8084"
     environment:
-      - SERVICE_NAME=delivery-service
-      - SERVICE_PORT=8084
+      - PORT=8084
+      - USERS_SERVICE_URL=http://users-service:8081
+    volumes:
+      - ./delivery-service/data:/app/data
     networks:
       - microservices-network
-    depends_on:
-      payments-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8084/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
 
 networks:
   microservices-network:
     driver: bridge
-
-volumes:
-  users-data:
-  orders-data:
-  payments-data:
-  delivery-data:

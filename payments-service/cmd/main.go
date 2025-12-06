@@ -1,53 +1,63 @@
 package main
 
 import (
-"log"
-"net/http"
-"time"
+	"log"
+	"net/http"
+	"os"
 
-"github.com/gorilla/mux"
-httpSwagger "github.com/swaggo/http-swagger"
+	"github.com/gorilla/mux"
+	httpSwagger "github.com/swaggo/http-swagger"
 
-"payments-service/internal/handlers"
-"payments-service/internal/repository"
-_ "payments-service/docs"
+	"payments-service/internal/handlers"
+	"payments-service/internal/repository"
+	_ "payments-service/docs"
 )
 
-// @title Payments Microservice API
+// @title Payments Service API
 // @version 1.0
-// @description API для управления платежами
+// @description Payments microservice
 // @host localhost:8083
-// @BasePath /
-// @schemes http https
+// @basePath /api
+
 func main() {
-router := mux.NewRouter()
+	router := mux.NewRouter()
 
-repo := repository.NewInMemoryPaymentRepository()
-handler := handlers.NewPaymentHandler(repo)
+	// Инициализируем JSON репозиторий
+	repo, err := repository.NewJSONPaymentRepository("./data/payments.json")
+	if err != nil {
+		log.Fatalf("Failed to initialize repository: %v", err)
+	}
 
-api := router.PathPrefix("/api").Subrouter()
-api.HandleFunc("/payments", handler.CreatePayment).Methods("POST")
-api.HandleFunc("/payments", handler.GetAllPayments).Methods("GET")
+	handler := handlers.NewPaymentHandler(repo)
 
-router.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
-httpSwagger.URL("http://localhost:8083/swagger/doc.json"),
-httpSwagger.DeepLinking(true),
-httpSwagger.DocExpansion("list"),
-))
+	// API endpoints
+	api := router.PathPrefix("/api").Subrouter()
 
-router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-w.WriteHeader(http.StatusOK)
-w.Write([]byte("OK"))
-}).Methods("GET")
+	api.HandleFunc("/payments", handler.CreatePayment).Methods("POST")
+	api.HandleFunc("/payments", handler.GetAllPayments).Methods("GET")
+	api.HandleFunc("/payments/{id}", handler.GetPaymentByID).Methods("GET")
+	api.HandleFunc("/payments/user/{userId}", handler.GetPaymentsByUserID).Methods("GET")
+	api.HandleFunc("/payments/{id}", handler.UpdatePayment).Methods("PUT")
+	api.HandleFunc("/payments/user/{userId}", handler.DeletePaymentsByUserID).Methods("DELETE")
 
-srv := &http.Server{
-Handler:      router,
-Addr:         ":8083",
-WriteTimeout: 15 * time.Second,
-ReadTimeout:  15 * time.Second,
-}
+	// Swagger
+	router.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
+		httpSwagger.URL("http://localhost:8083/swagger/doc.json"),
+	))
 
-log.Println("Payments service starting on :8083")
-log.Println("Swagger: http://localhost:8083/swagger/")
-log.Fatal(srv.ListenAndServe())
+	// Health check
+	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}).Methods("GET")
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8083"
+	}
+
+	log.Printf("Starting payments-service on port %s", port)
+	if err := http.ListenAndServe(":"+port, router); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
 }

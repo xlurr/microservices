@@ -1,236 +1,190 @@
 package handlers
 
 import (
-    "encoding/json"
-    "fmt"
-    "net/http"
-    "strconv"
-    "time"
-    
-    "github.com/gorilla/mux"
-    "github.com/go-playground/validator/v10"
-    
-    "users-service/internal/models"
-    "users-service/internal/repository"
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"github.com/gorilla/mux"
+
+	"users-service/internal/repository"
 )
 
+// UserHandler обработчик пользователей
 type UserHandler struct {
-    repo     repository.UserRepository
-    validate *validator.Validate
+	repo *repository.JSONUserRepository
 }
 
-func NewUserHandler(repo repository.UserRepository) *UserHandler {
-    return &UserHandler{
-        repo:     repo,
-        validate: validator.New(),
-    }
+// CreateUserRequest структура для создания пользователя
+type CreateUserRequest struct {
+	Email string `json:"email" binding:"required"`
+	Name  string `json:"name" binding:"required"`
+	Age   int    `json:"age" binding:"required,min=0,max=150"`
 }
 
-// CreateUser godoc
-// @Summary Создать нового пользователя
-// @Description Создание пользователя с валидацией данных
+// UpdateUserRequest структура для обновления пользователя
+type UpdateUserRequest struct {
+	Email string `json:"email" binding:"required"`
+	Name  string `json:"name" binding:"required"`
+	Age   int    `json:"age" binding:"required,min=0,max=150"`
+}
+
+// NewUserHandler создаёт новый обработчик
+func NewUserHandler(repo *repository.JSONUserRepository) *UserHandler {
+	return &UserHandler{
+		repo: repo,
+	}
+}
+
+// CreateUser создаёт пользователя
+// @Summary Создать пользователя
+// @Description Создать нового пользователя с валидацией @
 // @Tags users
 // @Accept json
 // @Produce json
-// @Param user body models.CreateUserRequest true "Данные пользователя"
-// @Success 201 {object} models.User
-// @Failure 400 {object} models.ErrorResponse
-// @Failure 422 {object} models.ErrorResponse
-// @Router /api/users [post]
+// @Param user body CreateUserRequest true "Данные пользователя"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {string} string "Invalid email"
+// @Router /users [post]
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
-    var req models.CreateUserRequest
-    
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        respondWithError(w, http.StatusBadRequest, "Invalid request body", nil)
-        return
-    }
-    
-    if err := h.validate.Struct(req); err != nil {
-        validationErrors := translateValidationErrors(err.(validator.ValidationErrors))
-        respondWithError(w, http.StatusUnprocessableEntity, "Validation failed", validationErrors)
-        return
-    }
-    
-    user := &models.User{
-        FirstName: req.FirstName,
-        LastName:  req.LastName,
-        Email:     req.Email,
-        Age:       req.Age,
-        CreatedAt: time.Now(),
-        UpdatedAt: time.Now(),
-    }
-    
-    if err := h.repo.Create(user); err != nil {
-        respondWithError(w, http.StatusInternalServerError, "Failed to create user", nil)
-        return
-    }
-    
-    respondWithJSON(w, http.StatusCreated, user)
+	var req CreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.repo.CreateUser(req.Email, req.Name, req.Age)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(user)
 }
 
-// GetAllUsers godoc
+// GetAllUsers получает всех пользователей
 // @Summary Получить всех пользователей
-// @Description Список всех пользователей
+// @Description Получить список всех пользователей
 // @Tags users
 // @Produce json
-// @Success 200 {array} models.User
-// @Failure 500 {object} models.ErrorResponse
-// @Router /api/users [get]
+// @Success 200 {array} map[string]interface{}
+// @Router /users [get]
 func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
-    users, err := h.repo.GetAll()
-    if err != nil {
-        respondWithError(w, http.StatusInternalServerError, "Failed to fetch users", nil)
-        return
-    }
-    
-    respondWithJSON(w, http.StatusOK, users)
+	users, err := h.repo.GetAllUsers()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(users)
 }
 
-// GetUserByID godoc
+// GetUserByID получает пользователя по ID
 // @Summary Получить пользователя по ID
-// @Description Информация о пользователе
+// @Description Получить конкретного пользователя
 // @Tags users
 // @Produce json
-// @Param id path int true "User ID"
-// @Success 200 {object} models.User
-// @Failure 404 {object} models.ErrorResponse
-// @Router /api/users/{id} [get]
+// @Param id path int64 true "ID пользователя"
+// @Success 200 {object} map[string]interface{}
+// @Failure 404 {string} string "User not found"
+// @Router /users/{id} [get]
 func (h *UserHandler) GetUserByID(w http.ResponseWriter, r *http.Request) {
-    vars := mux.Vars(r)
-    id, err := strconv.ParseInt(vars["id"], 10, 64)
-    if err != nil {
-        respondWithError(w, http.StatusBadRequest, "Invalid user ID", nil)
-        return
-    }
-    
-    user, err := h.repo.GetByID(id)
-    if err != nil {
-        respondWithError(w, http.StatusNotFound, "User not found", nil)
-        return
-    }
-    
-    respondWithJSON(w, http.StatusOK, user)
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.repo.GetUserByID(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
 }
 
-// UpdateUser godoc
+// UpdateUser обновляет пользователя
 // @Summary Обновить пользователя
-// @Description Обновление данных пользователя
+// @Description Обновить данные пользователя
 // @Tags users
 // @Accept json
 // @Produce json
-// @Param id path int true "User ID"
-// @Param user body models.CreateUserRequest true "Обновленные данные"
-// @Success 200 {object} models.User
-// @Failure 400 {object} models.ErrorResponse
-// @Failure 404 {object} models.ErrorResponse
-// @Router /api/users/{id} [put]
+// @Param id path int64 true "ID пользователя"
+// @Param user body UpdateUserRequest true "Новые данные"
+// @Success 200 {object} map[string]interface{}
+// @Failure 404 {string} string "User not found"
+// @Router /users/{id} [put]
 func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
-    vars := mux.Vars(r)
-    id, err := strconv.ParseInt(vars["id"], 10, 64)
-    if err != nil {
-        respondWithError(w, http.StatusBadRequest, "Invalid user ID", nil)
-        return
-    }
-    
-    var req models.CreateUserRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        respondWithError(w, http.StatusBadRequest, "Invalid request body", nil)
-        return
-    }
-    
-    if err := h.validate.Struct(req); err != nil {
-        validationErrors := translateValidationErrors(err.(validator.ValidationErrors))
-        respondWithError(w, http.StatusUnprocessableEntity, "Validation failed", validationErrors)
-        return
-    }
-    
-    user, err := h.repo.GetByID(id)
-    if err != nil {
-        respondWithError(w, http.StatusNotFound, "User not found", nil)
-        return
-    }
-    
-    user.FirstName = req.FirstName
-    user.LastName = req.LastName
-    user.Email = req.Email
-    user.Age = req.Age
-    user.UpdatedAt = time.Now()
-    
-    if err := h.repo.Update(user); err != nil {
-        respondWithError(w, http.StatusInternalServerError, "Failed to update user", nil)
-        return
-    }
-    
-    respondWithJSON(w, http.StatusOK, user)
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	var req UpdateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.repo.UpdateUser(id, req.Email, req.Name, req.Age)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
 }
 
-// DeleteUser godoc
+// DeleteUser удаляет пользователя
 // @Summary Удалить пользователя
-// @Description Удаление пользователя по ID
+// @Description Удалить пользователя (каскадно удаляет заказы, платежи, доставки)
 // @Tags users
-// @Produce json
-// @Param id path int true "User ID"
-// @Success 204 "No Content"
-// @Failure 404 {object} models.ErrorResponse
-// @Router /api/users/{id} [delete]
+// @Param id path int64 true "ID пользователя"
+// @Success 204
+// @Failure 404 {string} string "User not found"
+// @Router /users/{id} [delete]
 func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
-    vars := mux.Vars(r)
-    id, err := strconv.ParseInt(vars["id"], 10, 64)
-    if err != nil {
-        respondWithError(w, http.StatusBadRequest, "Invalid user ID", nil)
-        return
-    }
-    
-    if err := h.repo.Delete(id); err != nil {
-        respondWithError(w, http.StatusNotFound, "User not found", nil)
-        return
-    }
-    
-    w.WriteHeader(http.StatusNoContent)
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	err = h.repo.DeleteUser(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-    response, _ := json.Marshal(payload)
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(code)
-    w.Write(response)
-}
+// UserExists проверяет существование пользователя
+// @Summary Проверить существование пользователя
+// @Description Проверить, существует ли пользователь
+// @Tags users
+// @Param id path int64 true "ID пользователя"
+// @Success 200 {object} map[string]bool
+// @Router /users/{id}/exists [get]
+func (h *UserHandler) UserExists(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
 
-func respondWithError(w http.ResponseWriter, code int, message string, fieldErrors []models.FieldError) {
-    errResponse := models.ErrorResponse{
-        Status:  code,
-        Message: message,
-        Errors:  fieldErrors,
-    }
-    respondWithJSON(w, code, errResponse)
-}
-
-func translateValidationErrors(errs validator.ValidationErrors) []models.FieldError {
-    var fieldErrors []models.FieldError
-    for _, err := range errs {
-        fieldErrors = append(fieldErrors, models.FieldError{
-            Field:   err.Field(),
-            Message: getErrorMessage(err),
-        })
-    }
-    return fieldErrors
-}
-
-func getErrorMessage(err validator.FieldError) string {
-    switch err.Tag() {
-    case "required":
-        return "This field is required"
-    case "email":
-        return "Invalid email format"
-    case "min":
-        return fmt.Sprintf("Minimum length is %s", err.Param())
-    case "max":
-        return fmt.Sprintf("Maximum length is %s", err.Param())
-    case "gte":
-        return fmt.Sprintf("Must be >= %s", err.Param())
-    case "lte":
-        return fmt.Sprintf("Must be <= %s", err.Param())
-    default:
-        return "Invalid value"
-    }
+	exists := h.repo.UserExists(id)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"exists": exists})
 }
